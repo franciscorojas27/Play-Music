@@ -1,0 +1,15 @@
+Analyzing lib...
+
+  error - app_player.dart:87:50 - The argument type 'int?' can't be assigned to the parameter type 'int'.  - argument_type_not_assignable
+  error - app_tabs.dart:40:33 - A value of type 'int?' can't be assigned to a variable of type 'int'. Try changing the type of the variable, or casting the right-hand type to 'int'. - invalid_assignment
+warning - app_library.dart:6:8 - Unused import: 'app_player.dart'. Try removing the import directive. - unused_import
+   info - app_core.dart:113:9 - 'ConcatenatingAudioSource' is deprecated and shouldn't be used. Use AudioPlayer.setAudioSources instead. Try replacing the use of the deprecated member with the replacement. - deprecated_member_use
+   info - app_library.dart:2:8 - The import of 'dart:ui' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'. Try removing the import directive. - unnecessary_import
+   info - app_playlists.dart:57:19 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - app_playlists.dart:71:29 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+   info - app_playlists.dart:193:19 - Empty catch block. Try adding statements to the block, adding a comment to the block, or removing the 'catch' clause. - empty_catches
+   info - app_playlists.dart:225:21 - Statements in an if should be enclosed in a block. Try wrapping the statement in a block. - curly_braces_in_flow_control_structures
+   info - app_splash.dart:93:7 - Don't invoke 'print' in production code. Try using a logging framework. - avoid_print
+   info - app_tabs.dart:125:31 - Unnecessary use of multiple underscores. Try using '_'. - unnecessary_underscores
+
+11 issues found.
