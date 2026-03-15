@@ -133,9 +133,7 @@ class _PlaylistsTabState extends State<PlaylistsTab> {
                               height: 60,
                               width: 60,
                               decoration: BoxDecoration(
-                                color: Colors.deepOrangeAccent.withValues(
-                                  alpha: 0.2,
-                                ),
+                                color: Colors.deepOrangeAccent.withAlpha((0.2 * 255).toInt()),
                                 borderRadius: BorderRadius.circular(16),
                               ),
                               child: const Icon(
@@ -154,7 +152,7 @@ class _PlaylistsTabState extends State<PlaylistsTab> {
                             subtitle: Text(
                               "${AppData.playlists[pName]?.length ?? 0} canciones",
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.5),
+                                color: Colors.white.withAlpha((0.5 * 255).toInt()),
                               ),
                             ),
                             trailing: IconButton(

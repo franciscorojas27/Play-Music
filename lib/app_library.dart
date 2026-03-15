@@ -57,8 +57,9 @@ class _LibraryTabState extends State<LibraryTab> {
         _categorySongs = _filteredSongs.where((f) {
           final meta = AppData.metadataCache[f.path];
           if (_mode == LibMode.albums) return meta?.album == _selectedCategory;
-          if (_mode == LibMode.artists)
+          if (_mode == LibMode.artists) {
             return meta?.artist == _selectedCategory;
+          }
           if (_mode == LibMode.genres) return meta?.genre == _selectedCategory;
           return false;
         }).toList();
@@ -241,7 +242,7 @@ class _LibraryTabState extends State<LibraryTab> {
         decoration: BoxDecoration(
           color: selected
               ? Colors.redAccent
-              : Colors.white.withValues(alpha: 0.1),
+              : Colors.white.withAlpha((0.1 * 255).toInt()),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
@@ -258,13 +259,14 @@ class _LibraryTabState extends State<LibraryTab> {
   // --- RENDERS ---
 
   Widget _buildSongsList(List<File> songs) {
-    if (songs.isEmpty)
+    if (songs.isEmpty) {
       return const Center(
         child: Text(
           "No hay resultados",
           style: TextStyle(color: Colors.white54),
         ),
       );
+    }
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 120, top: 10),
       itemExtent: 80,
@@ -285,7 +287,7 @@ class _LibraryTabState extends State<LibraryTab> {
             height: 48,
             width: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
+              color: Colors.white.withAlpha((0.08 * 255).toInt()),
               borderRadius: BorderRadius.circular(12),
             ),
             clipBehavior: Clip.antiAlias,
@@ -296,13 +298,13 @@ class _LibraryTabState extends State<LibraryTab> {
                     keepOldArtwork: true,
                     nullArtworkWidget: Icon(
                       CupertinoIcons.music_note,
-                      color: Colors.white.withValues(alpha: 0.5),
+                      color: Colors.white.withAlpha((0.5 * 255).toInt()),
                       size: 20,
                     ),
                   )
                 : Icon(
                     CupertinoIcons.music_note,
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: Colors.white.withAlpha((0.5 * 255).toInt()),
                     size: 20,
                   ),
           ),
@@ -318,21 +320,56 @@ class _LibraryTabState extends State<LibraryTab> {
           subtitle: Text(
             subtitulo,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4),
+              color: Colors.white.withAlpha((0.4 * 255).toInt()),
               fontSize: 12,
             ),
           ),
           trailing: PopupMenuButton<String>(
             icon: Icon(
               CupertinoIcons.ellipsis_vertical,
-              color: Colors.white.withValues(alpha: 0.5),
+              color: Colors.white.withAlpha((0.5 * 255).toInt()),
             ),
             color: const Color(0xFF2A2A30),
             onSelected: (val) {
+              if (val == 'next') {
+                AppData.playNext(f);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Se reproducirá a continuación"),
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                );
+              }
               if (val == 'add') _addToPlaylist(f);
               if (val == 'del') _showDeleteConfirmDialog(f);
+              if (val == 'queue') {
+                AppData.addToQueue(f);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      "Añadida a la cola",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    backgroundColor: Colors.blueAccent,
+                  ),
+                );
+              }
             },
             itemBuilder: (c) => [
+              const PopupMenuItem(
+                value: 'next',
+                child: Text(
+                  'Reprod. a continuación',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'queue',
+                child: Text(
+                  'Añadir a la cola',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
               const PopupMenuItem(
                 value: 'add',
                 child: Text(
@@ -395,10 +432,11 @@ class _LibraryTabState extends State<LibraryTab> {
     }
 
     final keys = counts.keys.toList()..sort();
-    if (keys.isEmpty)
+    if (keys.isEmpty) {
       return const Center(
         child: Text("No hay datos", style: TextStyle(color: Colors.white54)),
       );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 120, top: 10),

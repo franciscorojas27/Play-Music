@@ -85,7 +85,7 @@ class _PlayerModalState extends State<PlayerModal> {
         backgroundColor: Colors.transparent,
         body: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF161618).withValues(alpha: 0.95),
+            color: const Color(0xFF161618).withAlpha((0.95 * 255).toInt()),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
           ),
           child: ClipRRect(
@@ -147,11 +147,11 @@ class _PlayerModalState extends State<PlayerModal> {
                   Center(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.1),
+                        color: Colors.redAccent.withAlpha((0.1 * 255).toInt()),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.redAccent.withValues(alpha: 0.2),
+                            color: Colors.redAccent.withAlpha((0.2 * 255).toInt()),
                             blurRadius: 40,
                           ),
                         ],
@@ -159,25 +159,43 @@ class _PlayerModalState extends State<PlayerModal> {
                       width: 250,
                       height: 250,
                       clipBehavior: Clip.antiAlias,
-                      child: AppData.metadataCache[currentFile.path] != null
-                          ? QueryArtworkWidget(
-                              id: AppData.metadataCache[currentFile.path]!.id,
-                              type: ArtworkType.AUDIO,
-                              keepOldArtwork: true,
-                              artworkWidth: 250,
-                              artworkHeight: 250,
-                              artworkFit: BoxFit.cover,
-                              nullArtworkWidget: const Icon(
+                      child: GestureDetector(
+                        onDoubleTapDown: (details) {
+                          final screenWidth = MediaQuery.of(context).size.width;
+                          final x = details.globalPosition.dx;
+                          if (x > screenWidth / 2) {
+                            // Forward 15s
+                            final current = AppData.player.position;
+                            final total = AppData.player.duration ?? Duration.zero;
+                            final skip = current + const Duration(seconds: 15);
+                            AppData.player.seek(skip > total ? total : skip);
+                          } else {
+                            // Backward 5s
+                            final current = AppData.player.position;
+                            final skip = current - const Duration(seconds: 5);
+                            AppData.player.seek(skip < Duration.zero ? Duration.zero : skip);
+                          }
+                        },
+                        child: AppData.metadataCache[currentFile.path] != null
+                            ? QueryArtworkWidget(
+                                id: AppData.metadataCache[currentFile.path]!.id,
+                                type: ArtworkType.AUDIO,
+                                keepOldArtwork: true,
+                                artworkWidth: 250,
+                                artworkHeight: 250,
+                                artworkFit: BoxFit.cover,
+                                nullArtworkWidget: const Icon(
+                                  CupertinoIcons.music_mic,
+                                  size: 120,
+                                  color: Colors.redAccent,
+                                ),
+                              )
+                            : const Icon(
                                 CupertinoIcons.music_mic,
                                 size: 120,
                                 color: Colors.redAccent,
                               ),
-                            )
-                          : const Icon(
-                              CupertinoIcons.music_mic,
-                              size: 120,
-                              color: Colors.redAccent,
-                            ),
+                      ),
                     ),
                   ),
                   Positioned(
@@ -193,6 +211,10 @@ class _PlayerModalState extends State<PlayerModal> {
                       onSelected: (val) {
                         if (val == 'add') {
                           _showAddToPlaylistDialog(currentFile);
+                        } else if (val == 'create_playlist') {
+                          _showCreatePlaylistFromSongDialog(currentFile);
+                        } else if (val == 'timer') {
+                          _showSleepTimerDialog();
                         }
                       },
                       itemBuilder: (c) => [
@@ -203,13 +225,40 @@ class _PlayerModalState extends State<PlayerModal> {
                             style: TextStyle(color: Colors.white),
                           ),
                         ),
+                        const PopupMenuItem(
+                          value: 'create_playlist',
+                          child: Text(
+                            "Crear lista a partir de esta",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'timer',
+                          child: Text(
+                            "Temporizador de apagado",
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 10),
+            ValueListenableBuilder<Duration?>(
+              valueListenable: AppData.sleepTimerRemaining,
+              builder: (context, remaining, child) {
+                if (remaining == null) return const SizedBox.shrink();
+                final mins = (remaining.inSeconds / 60).floor();
+                final secs = remaining.inSeconds % 60;
+                return Text(
+                  "Apagado en: ${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}",
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
             Text(
               AppData.metadataCache[currentFile.path]?.title ??
                   currentFile.path.split('/').last.replaceAll('.mp3', ''),
@@ -226,6 +275,73 @@ class _PlayerModalState extends State<PlayerModal> {
           ],
         );
       },
+    );
+  }
+
+  void _showSleepTimerDialog() {
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF161618),
+        title: const Text("Temporizador de apagado", style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("Desactivar", style: TextStyle(color: Colors.white)),
+              onTap: () { AppData.setSleepTimer(0); Navigator.pop(c); },
+            ),
+            ListTile(
+              title: const Text("15 minutos", style: TextStyle(color: Colors.white)),
+              onTap: () { AppData.setSleepTimer(15); Navigator.pop(c); },
+            ),
+            ListTile(
+              title: const Text("30 minutos", style: TextStyle(color: Colors.white)),
+              onTap: () { AppData.setSleepTimer(30); Navigator.pop(c); },
+            ),
+            ListTile(
+              title: const Text("60 minutos", style: TextStyle(color: Colors.white)),
+              onTap: () { AppData.setSleepTimer(60); Navigator.pop(c); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCreatePlaylistFromSongDialog(File song) {
+    final TextEditingController cont = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF161618),
+        title: const Text("Nueva lista", style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: cont,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: "Nombre de la lista",
+            hintStyle: TextStyle(color: Colors.white24),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              if (cont.text.isNotEmpty) {
+                AppData.createPlaylist(cont.text);
+                AppData.addSongToPlaylist(cont.text, song.path);
+                Navigator.pop(c);
+              }
+            },
+            child: const Text("Crear", style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -249,12 +365,16 @@ class _PlayerModalState extends State<PlayerModal> {
               final state = snapshot.data;
               final currentIndex = state?.currentIndex ?? 0;
 
-              return ListView.builder(
+              return ReorderableListView.builder(
+                onReorder: (oldIdx, newIdx) {
+                  AppData.reorderQueue(oldIdx, newIdx);
+                },
                 itemCount: AppData.currentQueue.length,
                 itemBuilder: (c, i) {
                   final f = AppData.currentQueue[i];
                   final isCurrent = i == currentIndex;
                   return ListTile(
+                    key: ValueKey(f.path + i.toString()),
                     contentPadding: EdgeInsets.zero,
                     title: Text(
                       AppData.metadataCache[f.path]?.title ??
@@ -276,6 +396,10 @@ class _PlayerModalState extends State<PlayerModal> {
                             CupertinoIcons.music_note,
                             color: Colors.white54,
                           ),
+                    trailing: const Icon(
+                      CupertinoIcons.bars,
+                      color: Colors.white24,
+                    ),
                     onTap: () {
                       AppData.player.seek(Duration.zero, index: i);
                     },

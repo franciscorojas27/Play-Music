@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
@@ -12,10 +13,35 @@ class AppData {
   static List<File> currentPlaylistQueue = [];
   static Map<String, SongModel> metadataCache = {};
 
+  // Temporizador de apagado
+  static Timer? _sleepTimer;
+  static final ValueNotifier<Duration?> sleepTimerRemaining = ValueNotifier(null);
+
   // Playlists: Nombre -> Lista de rutas (paths)
   static Map<String, List<String>> playlists = {};
   static List<String> playHistory = [];
   static SharedPreferences? prefs;
+
+  static void setSleepTimer(int minutes) {
+    _sleepTimer?.cancel();
+    if (minutes == 0) {
+      sleepTimerRemaining.value = null;
+      return;
+    }
+    
+    DateTime endTime = DateTime.now().add(Duration(minutes: minutes));
+    
+    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final remaining = endTime.difference(DateTime.now());
+      if (remaining.isNegative) {
+        player.pause();
+        timer.cancel();
+        sleepTimerRemaining.value = null;
+      } else {
+        sleepTimerRemaining.value = remaining;
+      }
+    });
+  }
 
   // Notificará a la UI cuando cambien las playlists o las canciones
   static final ValueNotifier<int> uiNotifier = ValueNotifier(0);
@@ -97,6 +123,96 @@ class AppData {
     }
   }
 
+  static Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final File item = currentPlaylistQueue.removeAt(oldIndex);
+    currentPlaylistQueue.insert(newIndex, item);
+
+    try {
+      // just_audio move dynamic sequence
+      final sequence = player.sequence;
+      // Safe check for index bounds
+      if (oldIndex < sequence.length && newIndex < sequence.length) {
+        await (player.audioSource as ConcatenatingAudioSource)
+            .move(oldIndex, newIndex);
+      }
+        } catch (e) {
+      debugPrint("Error reordering queue: $e");
+    }
+    uiNotifier.value++;
+  }
+
+  static Future<void> playNext(File song) async {
+    // Inserta la canción justo después de la actual
+    final currentIndex = player.currentIndex ?? -1;
+    final targetIndex = currentIndex + 1;
+
+    currentPlaylistQueue.insert(targetIndex, song);
+    try {
+      final meta = metadataCache[song.path];
+      final nombre =
+          meta?.title ?? song.path.split('/').last.replaceAll('.mp3', '');
+      final artist = meta?.artist ?? "Desconocido";
+      final album = meta?.album ?? "PlayMusic";
+
+      final source = AudioSource.uri(
+        Uri.parse(song.path),
+        tag: MediaItem(
+          id: song.path,
+          album: album,
+          title: nombre,
+          artist: artist,
+          artUri: Uri.parse("asset:///assets/cover.png"),
+        ),
+      );
+
+      if (player.audioSource is ConcatenatingAudioSource) {
+        await (player.audioSource as ConcatenatingAudioSource)
+            .insert(targetIndex, source);
+      } else {
+        await setupPlaylist(currentPlaylistQueue, initialIndex: currentIndex);
+      }
+    } catch (e) {
+      debugPrint("Error in playNext: $e");
+    }
+    uiNotifier.value++;
+  }
+
+  static Future<void> addToQueue(File song) async {
+    currentPlaylistQueue.add(song);
+    try {
+      final meta = metadataCache[song.path];
+      final nombre =
+          meta?.title ?? song.path.split('/').last.replaceAll('.mp3', '');
+      final artist = meta?.artist ?? "Desconocido";
+      final album = meta?.album ?? "PlayMusic";
+
+      final source = AudioSource.uri(
+        Uri.parse(song.path),
+        tag: MediaItem(
+          id: song.path,
+          album: album,
+          title: nombre,
+          artist: artist,
+          artUri: Uri.parse("asset:///assets/cover.png"),
+        ),
+      );
+
+      if (player.audioSource is ConcatenatingAudioSource) {
+        await (player.audioSource as ConcatenatingAudioSource).add(source);
+      } else {
+        // If not a concatenating source, we set up a new one with the song added
+        await setupPlaylist(currentPlaylistQueue,
+            initialIndex: player.currentIndex ?? 0);
+      }
+    } catch (e) {
+      debugPrint("Error adding to queue: $e");
+    }
+    uiNotifier.value++;
+  }
+
   static Future<void> deleteSongPermanently(File song) async {
     // Intentar eliminar el archivo
     try {
@@ -131,7 +247,7 @@ class AppData {
     List<File> songs, {
     int initialIndex = 0,
   }) async {
-    currentPlaylistQueue = songs;
+    currentPlaylistQueue = List.from(songs); // copy of the list
     try {
       final sources = songs.map((file) {
         final meta = metadataCache[file.path];
@@ -152,7 +268,10 @@ class AppData {
         );
       }).toList();
 
-      await player.setAudioSources(sources, initialIndex: initialIndex);
+      await player.setAudioSource(
+        ConcatenatingAudioSource(children: sources),
+        initialIndex: initialIndex,
+      );
     } catch (e) {
       debugPrint("Error playlist: $e");
     }
