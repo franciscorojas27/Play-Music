@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'dart:ui';
 import 'app_core.dart';
 import 'dart:io';
@@ -60,69 +61,6 @@ class _PlayerModalState extends State<PlayerModal> {
               },
             ),
           ),
-        );
-      },
-    );
-  }
-
-  void _showDeleteConfirmDialog(File song) {
-    showDialog(
-      context: context,
-      builder: (c) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF161618),
-          title: const Text(
-            "Precaución",
-            style: TextStyle(
-              color: Colors.redAccent,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Text(
-            "¿Estás seguro de eliminar '${song.path.split('/').last}' permanentemente de tu dispositivo? Esta acción no se puede deshacer.",
-            style: const TextStyle(color: Colors.white),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(c),
-              child: const Text(
-                "Cancelar",
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(c); // Cierra popup
-
-                // Si se está reproduciendo, pasamos a la siguiente o detenemos
-                if (AppData.player.playing) {
-                  await AppData.player.pause();
-                }
-
-                await AppData.deleteSongPermanently(song);
-
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Canción eliminada del dispositivo",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                      backgroundColor: Colors.redAccent,
-                    ),
-                  );
-                  Navigator.pop(context); // Cierra modal
-                }
-              },
-              child: const Text(
-                "ELIMINAR",
-                style: TextStyle(
-                  color: Colors.redAccent,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ],
         );
       },
     );
@@ -220,11 +158,25 @@ class _PlayerModalState extends State<PlayerModal> {
                       ),
                       width: 250,
                       height: 250,
-                      child: const Icon(
-                        CupertinoIcons.music_mic,
-                        size: 120,
-                        color: Colors.redAccent,
-                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: AppData.metadataCache[currentFile.path] != null
+                          ? QueryArtworkWidget(
+                              id: AppData.metadataCache[currentFile.path]!.id,
+                              type: ArtworkType.AUDIO,
+                              artworkWidth: 250,
+                              artworkHeight: 250,
+                              artworkFit: BoxFit.cover,
+                              nullArtworkWidget: const Icon(
+                                CupertinoIcons.music_mic,
+                                size: 120,
+                                color: Colors.redAccent,
+                              ),
+                            )
+                          : const Icon(
+                              CupertinoIcons.music_mic,
+                              size: 120,
+                              color: Colors.redAccent,
+                            ),
                     ),
                   ),
                   Positioned(
@@ -240,8 +192,6 @@ class _PlayerModalState extends State<PlayerModal> {
                       onSelected: (val) {
                         if (val == 'add') {
                           _showAddToPlaylistDialog(currentFile);
-                        } else if (val == 'delete') {
-                          _showDeleteConfirmDialog(currentFile);
                         }
                       },
                       itemBuilder: (c) => [
@@ -252,13 +202,6 @@ class _PlayerModalState extends State<PlayerModal> {
                             style: TextStyle(color: Colors.white),
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text(
-                            "Eliminar del dispositivo",
-                            style: TextStyle(color: Colors.redAccent),
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -267,7 +210,8 @@ class _PlayerModalState extends State<PlayerModal> {
             ),
             const SizedBox(height: 40),
             Text(
-              currentFile.path.split('/').last.replaceAll('.mp3', ''),
+              AppData.metadataCache[currentFile.path]?.title ??
+                  currentFile.path.split('/').last.replaceAll('.mp3', ''),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 22,
@@ -312,7 +256,8 @@ class _PlayerModalState extends State<PlayerModal> {
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(
-                      f.path.split('/').last.replaceAll('.mp3', ''),
+                      AppData.metadataCache[f.path]?.title ??
+                          f.path.split('/').last.replaceAll('.mp3', ''),
                       style: TextStyle(
                         color: isCurrent ? Colors.redAccent : Colors.white,
                         fontWeight: isCurrent

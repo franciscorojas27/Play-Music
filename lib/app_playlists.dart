@@ -72,8 +72,8 @@ class _PlaylistsTabState extends State<PlaylistsTab> {
       builder: (context, _, _) {
         if (AppData.activePlaylistKey != null) {
           return PlaylistDetailView(
-            playlistName: AppData.activePlaylistKey!, 
-            onBack: () => setState(() => AppData.activePlaylistKey = null)
+            playlistName: AppData.activePlaylistKey!,
+            onBack: () => setState(() => AppData.activePlaylistKey = null),
           );
         } else if (activePlaylist != null) {
           return PlaylistDetailView(
@@ -252,7 +252,8 @@ class PlaylistDetailView extends StatelessWidget {
                       final f = pSongs[i];
                       return ListTile(
                         title: Text(
-                          f.path.split('/').last.replaceAll('.mp3', ''),
+                          AppData.metadataCache[f.path]?.title ??
+                              f.path.split('/').last.replaceAll('.mp3', ''),
                           style: const TextStyle(color: Colors.white),
                           maxLines: 1,
                         ),

@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 import 'app_core.dart';
 import 'app_tabs.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -89,6 +90,17 @@ class _LaunchScreenState extends State<LaunchScreen> {
         (a, b) => a.path.split('/').last.compareTo(b.path.split('/').last),
       );
       AppData.allSongs = validSongs;
+
+      // Obtener metadatos y mapearlos por la ruta (data)
+      try {
+        final OnAudioQuery audioQuery = OnAudioQuery();
+        final List<SongModel> queriedSongs = await audioQuery.querySongs();
+        for (var song in queriedSongs) {
+          AppData.metadataCache[song.data] = song;
+        }
+      } catch (e) {
+        debugPrint("Error obteniendo metadata mediaStore: $e");
+      }
     } catch (e) {
       debugPrint("Error scan: $e");
     }
