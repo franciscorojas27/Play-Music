@@ -293,6 +293,7 @@ class _LibraryTabState extends State<LibraryTab> {
                 ? QueryArtworkWidget(
                     id: meta.id,
                     type: ArtworkType.AUDIO,
+                    keepOldArtwork: true,
                     nullArtworkWidget: Icon(
                       CupertinoIcons.music_note,
                       color: Colors.white.withValues(alpha: 0.5),

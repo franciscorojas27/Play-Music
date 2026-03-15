@@ -163,6 +163,7 @@ class _PlayerModalState extends State<PlayerModal> {
                           ? QueryArtworkWidget(
                               id: AppData.metadataCache[currentFile.path]!.id,
                               type: ArtworkType.AUDIO,
+                              keepOldArtwork: true,
                               artworkWidth: 250,
                               artworkHeight: 250,
                               artworkFit: BoxFit.cover,
