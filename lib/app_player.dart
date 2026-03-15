@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'dart:async';
 import 'dart:ui';
 import 'app_core.dart';
 import 'dart:io';
@@ -15,8 +16,12 @@ class PlayerModal extends StatefulWidget {
   State<PlayerModal> createState() => _PlayerModalState();
 }
 
+enum _SkipDirection { backward, forward }
+
 class _PlayerModalState extends State<PlayerModal> {
   bool _showingQueue = false;
+  _SkipDirection? _skipDirection;
+  Timer? _skipIndicatorTimer;
 
   void _toggleQueue() {
     setState(() => _showingQueue = !_showingQueue);
@@ -64,6 +69,12 @@ class _PlayerModalState extends State<PlayerModal> {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _skipIndicatorTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -139,50 +150,41 @@ class _PlayerModalState extends State<PlayerModal> {
         final idx = state!.currentIndex ?? 0;
         final currentFile = AppData.currentQueue[idx];
 
+        const double artworkSize = 250;
         return Column(
           children: [
             Expanded(
               child: Stack(
                 children: [
                   Center(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withAlpha((0.1 * 255).toInt()),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.redAccent.withAlpha((0.2 * 255).toInt()),
-                            blurRadius: 40,
+                    child: GestureDetector(
+                      onDoubleTapDown: (details) =>
+                          _handleDoubleTap(details, artworkSize),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withAlpha(
+                            (0.1 * 255).toInt(),
                           ),
-                        ],
-                      ),
-                      width: 250,
-                      height: 250,
-                      clipBehavior: Clip.antiAlias,
-                      child: GestureDetector(
-                        onDoubleTapDown: (details) {
-                          final screenWidth = MediaQuery.of(context).size.width;
-                          final x = details.globalPosition.dx;
-                          if (x > screenWidth / 2) {
-                            // Forward 15s
-                            final current = AppData.player.position;
-                            final total = AppData.player.duration ?? Duration.zero;
-                            final skip = current + const Duration(seconds: 15);
-                            AppData.player.seek(skip > total ? total : skip);
-                          } else {
-                            // Backward 5s
-                            final current = AppData.player.position;
-                            final skip = current - const Duration(seconds: 5);
-                            AppData.player.seek(skip < Duration.zero ? Duration.zero : skip);
-                          }
-                        },
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.redAccent.withAlpha(
+                                (0.2 * 255).toInt(),
+                              ),
+                              blurRadius: 40,
+                            ),
+                          ],
+                        ),
+                        width: artworkSize,
+                        height: artworkSize,
+                        clipBehavior: Clip.antiAlias,
                         child: AppData.metadataCache[currentFile.path] != null
                             ? QueryArtworkWidget(
                                 id: AppData.metadataCache[currentFile.path]!.id,
                                 type: ArtworkType.AUDIO,
                                 keepOldArtwork: true,
-                                artworkWidth: 250,
-                                artworkHeight: 250,
+                                artworkWidth: artworkSize,
+                                artworkHeight: artworkSize,
                                 artworkFit: BoxFit.cover,
                                 nullArtworkWidget: const Icon(
                                   CupertinoIcons.music_mic,
@@ -195,6 +197,16 @@ class _PlayerModalState extends State<PlayerModal> {
                                 size: 120,
                                 color: Colors.redAccent,
                               ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: _skipDirection == null ? 0 : 1,
+                        child: _buildSkipOverlay(),
                       ),
                     ),
                   ),
@@ -254,7 +266,11 @@ class _PlayerModalState extends State<PlayerModal> {
                 final secs = remaining.inSeconds % 60;
                 return Text(
                   "Apagado en: ${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}",
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
                 );
               },
             ),
@@ -283,25 +299,52 @@ class _PlayerModalState extends State<PlayerModal> {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: const Color(0xFF161618),
-        title: const Text("Temporizador de apagado", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Temporizador de apagado",
+          style: TextStyle(color: Colors.white),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text("Desactivar", style: TextStyle(color: Colors.white)),
-              onTap: () { AppData.setSleepTimer(0); Navigator.pop(c); },
+              title: const Text(
+                "Desactivar",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                AppData.setSleepTimer(0);
+                Navigator.pop(c);
+              },
             ),
             ListTile(
-              title: const Text("15 minutos", style: TextStyle(color: Colors.white)),
-              onTap: () { AppData.setSleepTimer(15); Navigator.pop(c); },
+              title: const Text(
+                "15 minutos",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                AppData.setSleepTimer(15);
+                Navigator.pop(c);
+              },
             ),
             ListTile(
-              title: const Text("30 minutos", style: TextStyle(color: Colors.white)),
-              onTap: () { AppData.setSleepTimer(30); Navigator.pop(c); },
+              title: const Text(
+                "30 minutos",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                AppData.setSleepTimer(30);
+                Navigator.pop(c);
+              },
             ),
             ListTile(
-              title: const Text("60 minutos", style: TextStyle(color: Colors.white)),
-              onTap: () { AppData.setSleepTimer(60); Navigator.pop(c); },
+              title: const Text(
+                "60 minutos",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                AppData.setSleepTimer(60);
+                Navigator.pop(c);
+              },
             ),
           ],
         ),
@@ -328,7 +371,10 @@ class _PlayerModalState extends State<PlayerModal> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              "Cancelar",
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           TextButton(
             onPressed: () {
@@ -338,7 +384,10 @@ class _PlayerModalState extends State<PlayerModal> {
                 Navigator.pop(c);
               }
             },
-            child: const Text("Crear", style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              "Crear",
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -413,6 +462,78 @@ class _PlayerModalState extends State<PlayerModal> {
     );
   }
 
+  void _handleDoubleTap(TapDownDetails details, double width) {
+    final isForward = details.localPosition.dx > width / 2;
+    final direction = isForward
+        ? _SkipDirection.forward
+        : _SkipDirection.backward;
+    _startSkipIndicator(direction);
+
+    final current = AppData.player.position;
+    final total = AppData.player.duration ?? Duration.zero;
+
+    if (isForward) {
+      final skip = current + const Duration(seconds: 15);
+      AppData.player.seek(skip > total ? total : skip);
+    } else {
+      final skip = current - const Duration(seconds: 5);
+      AppData.player.seek(skip.isNegative ? Duration.zero : skip);
+    }
+  }
+
+  void _startSkipIndicator(_SkipDirection direction) {
+    _skipIndicatorTimer?.cancel();
+    setState(() {
+      _skipDirection = direction;
+    });
+    _skipIndicatorTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      setState(() {
+        _skipDirection = null;
+      });
+    });
+  }
+
+  Widget _buildSkipOverlay() {
+    final direction = _skipDirection ?? _SkipDirection.forward;
+    final icon = direction == _SkipDirection.forward
+        ? CupertinoIcons.forward_fill
+        : CupertinoIcons.backward_fill;
+    final label = direction == _SkipDirection.forward
+        ? "Adelantar 15s"
+        : "Retroceder 5s";
+    final alignment = direction == _SkipDirection.forward
+        ? Alignment.centerRight
+        : Alignment.centerLeft;
+
+    return Align(
+      alignment: alignment,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black45,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white, size: 28),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlayerControls() {
     return Column(
       children: [
@@ -467,17 +588,28 @@ class _PlayerModalState extends State<PlayerModal> {
                 final state = snapshot.data;
                 final playing = state?.playing ?? false;
                 return Container(
-                  decoration: const BoxDecoration(
+                  width: 74,
+                  height: 74,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
                     color: Colors.redAccent,
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.redAccent.withAlpha(150),
+                        blurRadius: 25,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: IconButton(
+                    padding: EdgeInsets.zero,
+                    iconSize: 40,
                     icon: Icon(
                       playing
                           ? CupertinoIcons.pause_fill
                           : CupertinoIcons.play_fill,
                       color: Colors.white,
-                      size: 40,
                     ),
                     onPressed: playing
                         ? AppData.player.pause
