@@ -25,7 +25,7 @@
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone https://github.com/tu-usuario/playmusic.git
+   git clone https://github.com/franciscorojas27/Play-Music.git
    ```
 2. **Instalar dependencias:**
    ```bash
